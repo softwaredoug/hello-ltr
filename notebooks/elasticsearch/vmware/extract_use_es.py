@@ -1,3 +1,8 @@
+"""
+This script evolves the vmware corpus starting with a reindex,
+and adding non-destructive migrations as I learn more about the corpus,
+and what might work
+"""
 from time import perf_counter
 import json
 import ast
@@ -8,6 +13,10 @@ import tensorflow_hub as hub
 
 import pandas as pd
 
+# enrichment migrations
+import use
+import first_line
+import remaining_lines
 
 def corpus():
     corpus = pd.read_csv('data/vmware_ir_content.csv')
@@ -36,43 +45,6 @@ def corpus():
         yield row_dict
 
 
-use_mapping = {
-  "properties": {
-    "raw_text_use": {
-        "type": "dense_vector",
-        "dims": 512
-    }
-  }
-}
-
-use = hub.load("https://tfhub.dev/google/universal-sentence-encoder-multilingual/3")
-
-def process_use(doc_source):
-    """Process USE data"""
-    doc_source['raw_text_use'] = use(doc_source['raw_text']).numpy().tolist()[0]
-    return doc_source
-
-
-first_line_mapping = {
-  "properties": {
-    "first_line": {
-    "type": "text",
-    "analyzer": "content_analyzer",
-    "fields": {
-      "bigrams": {
-        "type": "text",
-        "analyzer": "content_bigrams"
-      }
-    }
-  }
-  }
-}
-
-
-def add_first_line(doc_source):
-    """First lines appear to be titles?"""
-    doc_source['first_line'] = doc_source['raw_text'].split('\n')[0]
-    return doc_source
 
 def main(version):
     client=ElasticClient()
@@ -81,12 +53,18 @@ def main(version):
                 doc_src=corpus(), force=True)
     elif version == 1:
         client.enrich(index='vmware',
-                      enrich_fn=process_use,
-                      mapping=use_mapping, version=version)
+                      enrich_fn=use.enrichment,
+                      mapping=use.mapping,
+                      version=version)
     elif version == 2:
         client.enrich(index='vmware',
-                      enrich_fn=add_first_line,
-                      mapping=first_line_mapping, version=version)
+                      enrich_fn=first_line.enrichment,
+                      mapping=first_line.mapping,
+                      version=version)
+    elif version == 3:
+        client.enrich(index='vmware',
+                      enrich_fn=remaining_lines.enrichment,
+                      mapping=remaining_lines.mapping, version=version)
 
 
 if __name__ == "__main__":
