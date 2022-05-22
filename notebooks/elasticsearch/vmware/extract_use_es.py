@@ -52,8 +52,6 @@ def process_use(doc_source):
     return doc_source
 
 
-
-
 def main(version):
     client=ElasticClient()
     if version == 0:

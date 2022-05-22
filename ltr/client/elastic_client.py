@@ -2,11 +2,13 @@ import os
 import requests
 from time import perf_counter
 from collections import Counter
+import concurrent.futures
 
 from .base_client import BaseClient
 from ltr.helpers.handle_resp import resp_msg
 
 import elasticsearch.helpers
+from elasticsearch.exceptions import NotFoundError
 import json
 from elasticsearch import Elasticsearch
 
@@ -82,51 +84,56 @@ class ElasticClient(BaseClient):
             resp_msg(msg="Created index {}".format(index), resp=ElasticResp(resp))
 
 
-    def enrich(self, index, enrich_fn, mapping, version):
+    def enrich(self, index, enrich_fn, mapping, version, workers=2):
         """Incrementally enrich documents not yet at the specified version."""
         search_scroll_body = {
             "query": {
-                "range": {
-                    version_field: {
-                        "lt": version,
-                        "gte": version - 1
-                    }
+                "match": {
+                    version_field: version - 1
                 }
             }
         }
-
         count = self.es.count(index=index, body=search_scroll_body)
         print(f"Enriching {count['count']} documents in {index}")
 
         self.es.indices.put_mapping(index=index, body=mapping)
 
-        start = perf_counter()
+        def scanner():
+            start = perf_counter()
+            for idx, doc in enumerate(elasticsearch.helpers.scan(self.es, index=index, scroll='5m',
+                                                                  size=1000,
+                                                                  query=search_scroll_body)):
 
-        version_tracker = Counter()
-
-        for idx, doc in enumerate(elasticsearch.helpers.scan(self.es, index=index, scroll='5m',
-                                                             size=1000,
-                                                             query=search_scroll_body)):
-
-            try:
                 curr_version = int(doc['_source'][version_field])
-            except KeyError:
-                curr_version = 0
-                doc['_source'][version_field] = 0
 
-            # this could be a little faster if we did a bulk update
-            # but it doesn't dominate performance
-            if version == curr_version + 1:
+                assert version == curr_version + 1
+
                 doc['_source'] = enrich_fn(doc['_source'])
                 doc["_source"][version_field] = version
-                self.es.update(index=index, id=doc['_id'], body={"doc": doc['_source']})
+                try:
+                    yield {
+                        "_op_type": "update",
+                        "_index": index,
+                        "_id": doc['_id'],
+                        "doc": doc['_source']
+                    }
 
-            version_tracker.update([doc['_source'][version_field]])
+                    # return self.es.update(index=index, id=doc['_id'], body={"doc": doc['_source']})
+                except NotFoundError:
+                    print(f"Document {doc['_id']} not found, skipping")
 
-            if idx % 100 == 0:
-                print(f"Enriched {idx} documents -- {perf_counter() - start}")
-                print(version_tracker)
-                print("--------")
+                if idx % 100 == 0:
+                    print(f"Enriched {idx} documents -- {perf_counter() - start}")
+                    print("--------")
+
+        resps = elasticsearch.helpers.parallel_bulk(self.es, scanner(), thread_count=workers,
+                                                    chunk_size=100, request_timeout=120)
+        for success, resp in resps:
+            if not success:
+                print("Failure -- ")
+                print(resp)
+        self.es.indices.refresh(index=index)
+
 
 
 
