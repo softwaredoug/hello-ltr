@@ -1,4 +1,6 @@
 """Add USE for entire raw text to vmware corpus."""
+import tensorflow_text
+import tensorflow_hub as hub
 
 _use_mapping = {
   "properties": {

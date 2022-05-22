@@ -8,8 +8,6 @@ import json
 import ast
 from ltr.client import ElasticClient
 from ltr.index import rebuild
-import tensorflow_text
-import tensorflow_hub as hub
 
 import pandas as pd
 

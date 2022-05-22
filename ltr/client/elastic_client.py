@@ -84,6 +84,20 @@ class ElasticClient(BaseClient):
             resp_msg(msg="Created index {}".format(index), resp=ElasticResp(resp))
 
 
+    def to_dataframe(self, index, query={"query": {"match_all": {}}}):
+        import pandas as pd
+        start = perf_counter()
+        docs = []
+        for idx, doc in enumerate(elasticsearch.helpers.scan(self.es, index=index, scroll='5m',
+                                                              size=1000,
+                                                              query=query)):
+            docs.append(doc['_source'])
+            if idx % 10000 == 0:
+                print(f"Scanned {idx} documents -- {perf_counter() - start}")
+        return pd.DataFrame(docs)
+
+
+
     def enrich(self, index, enrich_fn, mapping, version, workers=2):
         """Incrementally enrich documents not yet at the specified version."""
         search_scroll_body = {
