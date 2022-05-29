@@ -224,7 +224,7 @@ def bm25_raw_text_to_remaining_lines_search(client, query):
 
 
 def max_passage_rerank_at_5_attempt_2(client, query):
-    """Best pure BM25 submission on 29-May ~0.305."""
+    """Rerank with USE on top of best pure BM25 submission on 29-May NDCG 0.31569."""
     es = client.es
     body = {
         'size': 5,
