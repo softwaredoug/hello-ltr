@@ -15,6 +15,7 @@ import pandas as pd
 import use
 import first_line
 import remaining_lines
+import use_remaining_lines
 
 def corpus():
     corpus = pd.read_csv('data/vmware_ir_content.csv')
@@ -43,6 +44,22 @@ def corpus():
         yield row_dict
 
 
+# To revert a version
+#   POST vmware/_update_by_query
+#   {
+#      "script": {
+#        "source": "ctx._source.enrich_version = 3",
+#        "lang": "painless"
+#      },
+#      "query": {
+#        "match": {
+#          "enrich_version": "4"
+#        }
+#      }
+#    }
+#
+#    POST vmware/_refresh
+
 
 def main(version):
     client=ElasticClient()
@@ -63,6 +80,10 @@ def main(version):
         client.enrich(index='vmware',
                       enrich_fn=remaining_lines.enrichment,
                       mapping=remaining_lines.mapping, version=version)
+    elif version == 4:
+        client.enrich(index='vmware',
+                      enrich_fn=use_remaining_lines.enrichment,
+                      mapping=use_remaining_lines.mapping, version=version)
 
 
 if __name__ == "__main__":
