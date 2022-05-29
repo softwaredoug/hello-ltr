@@ -50,8 +50,8 @@ def submission_2_search(client, query):
     return es.search(index='vmware', body=body)['hits']['hits']
 
 
-def max_passage_rerank(client, query):
-    """Rerank top 5 submissions by max passage USE similarity"""
+def max_passage_rerank_at_5(client, query):
+    """Rerank top 5 submissions by max passage USE similarity. NDCG of 0.30562"""
     es = client.es
     body = {
         'size': 5,
@@ -95,6 +95,52 @@ def max_passage_rerank(client, query):
     return hits
 
 
+def sum_passage_rerank_at_5(client, query):
+    """Rerank top 5 submissions by max passage USE similarity. NDCG of 0.30562"""
+    es = client.es
+    body = {
+        'size': 5,
+        'query': {
+            'bool': { 'should': [
+                {'match_phrase': {
+                    'remaining_lines': {
+                        'slop': 10,
+                        'query': query
+                    }
+                }},
+                {'match_phrase': {
+                    'first_line': {
+                        'slop': 10,
+                        'query': query
+                    }
+                }},
+                {'match': {
+                    'raw_text': {
+                        'query': query
+                    }
+                }},
+                {'match': {
+                    'first_line': {
+                        'query': query
+                    }
+                }},
+            ]}
+        }
+    }
+
+    print(json.dumps(body, indent=2))
+
+    hits = es.search(index='vmware', body=body)['hits']['hits']
+
+    for hit in hits:
+        hit['_source']['max_sim'], hit['_source']['sum_sim'] = passage_similarity(query, hit, verbose=False)
+
+    hits = sorted(hits, key=lambda x: x['_source']['sum_sim'], reverse=True)
+    hits = hits[:5]
+    return hits
+
+
+
 def passage_similarity(query, hit, verbose=False):
     source = hit['_source']
     vectors = [source['first_line_use']]
@@ -126,7 +172,7 @@ def passage_similarity(query, hit, verbose=False):
 
 
 
-def search(query, strategy=max_passage_rerank):
+def search(query, strategy=max_passage_rerank_at_5):
     """Search for submission that got NDCG ~0.29."""
     client = ElasticClient()
     print(query)
@@ -138,7 +184,7 @@ def search(query, strategy=max_passage_rerank):
         print("----------------------------------")
 
 
-def submission(strategy=max_passage_rerank, verbose=False):
+def submission(strategy=max_passage_rerank_at_5, verbose=False):
     client = ElasticClient()
     queries = pd.read_csv('data/test.csv')
     all_results = []
