@@ -16,6 +16,8 @@ import use
 import first_line
 import remaining_lines
 import use_remaining_lines
+import first_remaining_lines
+import bert
 
 def corpus():
     corpus = pd.read_csv('data/vmware_ir_content.csv')
@@ -84,6 +86,19 @@ def main(version):
         client.enrich(index='vmware',
                       enrich_fn=use_remaining_lines.enrichment,
                       mapping=use_remaining_lines.mapping, version=version)
+    elif version == 5:
+        client.enrich(index='vmware',
+                      enrich_fn=first_remaining_lines.enrichment,
+                      mapping=first_remaining_lines.mapping, version=version)
+    elif version == 6:
+        # BERT preprocses step for performance
+        client.enrich(index='vmware',
+                      enrich_fn=bert.preprocess,
+                      mapping=None, version=version)
+        bert.cache.write_sentences()
+        bert.cache.done()
+        bert.bert_all()
+
 
 
 if __name__ == "__main__":
