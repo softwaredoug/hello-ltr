@@ -110,7 +110,8 @@ class ElasticClient(BaseClient):
         count = self.es.count(index=index, body=search_scroll_body)
         print(f"Enriching {count['count']} documents in {index}")
 
-        self.es.indices.put_mapping(index=index, body=mapping)
+        if mapping is not None:
+            self.es.indices.put_mapping(index=index, body=mapping)
 
         def scanner():
             start = perf_counter()

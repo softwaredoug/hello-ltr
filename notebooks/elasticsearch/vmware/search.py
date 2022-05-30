@@ -268,6 +268,51 @@ def max_passage_rerank_at_5_attempt_2(client, query):
     return hits
 
 
+def max_passage_rerank_first_remaining_lines(client, query):
+    """Rerank with USE on top of best pure BM25 submission on 29-May NDCG 0.31569."""
+    es = client.es
+    body = {
+        'size': 5,
+        'query': {
+            'bool': { 'should': [
+                {'match_phrase': {
+                    'first_remaining_lines': {
+                        'slop': 10,
+                        'query': query
+                    }
+                }},
+                {'match_phrase': {
+                    'first_line': {
+                        'slop': 10,
+                        'query': query
+                    }
+                }},
+                {'match': {
+                    'first_remaining_lines': {
+                        'query': query
+                    }
+                }},
+                {'match': {
+                    'first_line': {
+                        'query': query
+                    }
+                }},
+            ]}
+        }
+    }
+
+    print(json.dumps(body, indent=2))
+
+    hits = es.search(index='vmware', body=body)['hits']['hits']
+
+    for hit in hits:
+        hit['_source']['max_sim'], hit['_source']['sum_sim'] = passage_similarity(query, hit, verbose=False)
+
+    hits = sorted(hits, key=lambda x: x['_source']['max_sim'], reverse=True)
+    hits = hits[:5]
+    return hits
+
+
 
 
 def passage_similarity(query, hit, verbose=False):
