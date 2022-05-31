@@ -102,12 +102,12 @@ class SentenceCache:
 
     def add_sentence(self, sentences):
         self.f.write('\n'.join(sentences))
+        self.f.write('\n')
 
     def end_document(self):
         self.f.write('---\n')
 
     def write_sentences(self):
-        self.f.write('\n')
         self.f.close()
         #print(f"Writing {len(self.all_sentences)} sentences to file")
         #with open("sentences.txt", "w") as f:
@@ -123,8 +123,7 @@ class SentenceCache:
 
 def sentences_embedding(sentences):
     """Get the embeddings of the start (CLS) token."""
-    inputs = _preprocess(sentences)
-    all_sentences.append(sentences)
+    inputs = _preprocess(sentences)  # Idea - append up to allowable length in each sentence?
     embeddings = _bert(inputs)['pooled_output']
     return embeddings.numpy().tolist()
 
@@ -144,20 +143,20 @@ def _process_bert_remaining_lines(doc_source):
 cache = SentenceCache()
 
 
-def add_sentences(doc_source):
+def add_sentences(doc_source, min_length=1):
     cache.add_sentence([doc_source["first_line"]])
-    long_remaining_lines = [line for line in doc_source['remaining_lines'] if len(line) > 20]
+    long_remaining_lines = [line for line in doc_source['remaining_lines'] if len(line) >= min_length]
     cache.add_sentence(long_remaining_lines)
     cache.end_document()
     return doc_source
 
 
 def bert_all():
-    sentences = cache.read_sentences()
+    sentences = list(set(cache.read_sentences()))
     import pdb; pdb.set_trace()
     embeddings = sentences_embedding(sentences)
     all_embeddings = []
-    for sentence, embed in zip(senteces, embeddings):
+    for sentence, embed in zip(sentences, embeddings):
         all_embeddings.append({'sentence': sentence, 'embedding': embed})
     all_embeddings = pd.DataFrame(all_embeddings)
     all_embeddings.to_pickle(all_embeddings, "all_embeddings.pkl")
