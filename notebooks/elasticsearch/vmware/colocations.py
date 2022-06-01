@@ -113,6 +113,7 @@ class Colocations:
 
 
 def scan_index(client, index, query={"query": {"match_all": {}}}):
+    """Compute colocation and compound scores for the corpus."""
     start = perf_counter()
     collocations = Colocations()
     for idx, doc in enumerate(elasticsearch.helpers.scan(client.es, index=index, scroll='5m',
@@ -127,6 +128,21 @@ def scan_index(client, index, query={"query": {"match_all": {}}}):
             print(collocations.scores_to_dataframe().head(10))
     colos = collocations.scores_to_dataframe()
     colos.to_pickle('colocs.pkl')
+
+
+def scan_queries():
+    """Compute colocation and compound scores for test queries."""
+    start = perf_counter()
+    collocations = Colocations()
+    queries = pd.read_csv('data/test.csv')
+    for query in queries.Query:
+        collocations.add_text([query])
+        #collocations.add_text(doc['_source']['first_line'])
+        #for line in doc['_source']['remaining_lines'][:10]:
+        #    collocations.add_text(line)
+    print(collocations.scores_to_dataframe(min_count=0, min_snippet_count=0).head(10))
+    colos = collocations.scores_to_dataframe(min_count=0, min_snippet_count=0)
+    colos.to_pickle('colocs_queries.pkl')
 
 
 
