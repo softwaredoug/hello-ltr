@@ -1,15 +1,47 @@
 from sys import argv
 from elasticsearch import Elasticsearch
+from math import log
 
 import pandas as pd
 from .rerank_simple_slop_search import \
     rerank_slop_search_remaining_lines_max_snippet_at_5
 
 
+def damage(results1, results2, at=10):
+    """ How "damaging" could the change from results1 -> results2 be?
+        (results1, results2 are an array of document identifiers)
+        For each result in result1,
+            Is the result in result2[:at]
+                If so, how far has it moved?
+            If not,
+                Consider it a move of at+1
+            damage += discount(idx) * moveDist
+                """
+
+    def discount(idx):
+        return 1.0 / log(idx + 2)
+
+    idx = 0
+    dmg = 0.0
+
+    if len(results1) < at:
+        at = len(results1)
+
+    for result in results1[:at]:
+        movedToIdx = at + 1  # out of the window
+        if result in results2:
+            movedToIdx = results2.index(result)
+        moveDist = abs(movedToIdx - idx)
+        dmg += discount(idx) * moveDist
+        idx += 1
+
+    return dmg
+
+
 def search(query,
            strategy=rerank_slop_search_remaining_lines_max_snippet_at_5):
     print(query)
-    es = Elasticsearch()
+    es = Elasticsearch('http://localhost:9200')
     hits = strategy(es, query)
     for hit in hits:
         print("**********************************")
@@ -20,35 +52,38 @@ def search(query,
         print("----------------------------------")
 
 
-def submission(strategy=rerank_slop_search_remaining_lines_max_snippet_at_5,
+def submission(baseline=rerank_slop_search_remaining_lines_max_snippet_at_5,
+               test=rerank_slop_search_remaining_lines_max_snippet_at_5,
                verbose=False):
     """Search all test queries to generate a submission."""
     queries = pd.read_csv('data/test.csv')
     all_results = []
-    es = Elasticsearch()
+    es = Elasticsearch('http://localhost:9200')
     for query in queries.to_dict(orient='records'):
-        results = strategy(es, query['Query'])
-        for rank, result in enumerate(results):
-            source = result['_source']
-            if verbose and rank == 0:
-                print(f"First result for {query['QueryId']},{query['Query']}")
-                if 'titleTag' in source:
-                    print(source['titleTag'])
-                else:
-                    print("No title tag")
-                if 'first_line' in source:
-                    print(source['first_line'])
-                else:
-                    print("No first_line")
+        results_control = baseline(es, query['Query'])
+        results_test = test(es, query['Query'])
 
-                if 'remaining_lines' in source:
-                    print(source['remaining_lines'])
+        delta_damage = damage([r['_id'] for r in results_control],
+                              [r['_id'] for r in results_test])
 
-            source['rank'] = rank
-            source['score'] = result['_score']
-            source['DocumentId'] = source['id']
-            source['QueryId'] = query['QueryId']
-            all_results.append(source)
+        if verbose:
+            print(query['Query'])
+            print(f"DAMAGE: {delta_damage}")
+            print("----------------------------------")
+
+        for rank, (result_control, result_test) in enumerate(zip(results_control, results_test)):
+            source_control = result_control['_source']
+            source_test = result_test['_source']
+            source_test['rank'] = rank
+            source_test['score_test'] = result_test['_score']
+            source_test['score_control'] = result_control['_score']
+            source_test['damage'] = delta_damage
+            source_test['DocumentId_test'] = source_test['id']
+            source_test['DocumentId_control'] = source_control['id']
+            source_test['splainer_test'] = source_test['splainer']
+            source_test['splainer_control'] = source_control['splainer']
+            source_test['QueryId'] = query['QueryId']
+            all_results.append(source_test)
     all_results = pd.DataFrame(all_results)
     return queries.merge(all_results, how='left', on='QueryId')\
         .sort_values(['QueryId', 'rank'])

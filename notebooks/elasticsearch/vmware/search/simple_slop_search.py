@@ -1,5 +1,6 @@
 """Non reranked simple search solutions of vmware challenge."""
 import json
+from .splainer import splainer_url
 
 
 def bm25_raw_text_to_remaining_lines_search(es, query):
@@ -36,7 +37,10 @@ def bm25_raw_text_to_remaining_lines_search(es, query):
 
     print(json.dumps(body, indent=2))
 
-    return es.search(index='vmware', body=body)['hits']['hits']
+    hits = es.search(index='vmware', body=body)['hits']['hits']
+    for hit in hits:
+        hit['_source']['splainer'] = splainer_url(es_body=body)
+    return hits
 
 
 def submission_2_search(es, query):
@@ -73,4 +77,7 @@ def submission_2_search(es, query):
 
     print(json.dumps(body, indent=2))
 
-    return es.search(index='vmware', body=body)['hits']['hits']
+    hits = es.search(index='vmware', body=body)['hits']['hits']
+    for hit in hits:
+        hit['_source']['splainer'] = splainer_url(es_body=body)
+    return hits

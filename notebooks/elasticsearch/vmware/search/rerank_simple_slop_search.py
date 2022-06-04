@@ -1,5 +1,6 @@
 import json
 from .passage_similarity import passage_similarity
+from .splainer import splainer_url
 
 
 def rerank_slop_search_remaining_lines_max_snippet_at_5(es, query):
@@ -45,6 +46,7 @@ def rerank_slop_search_remaining_lines_max_snippet_at_5(es, query):
     for hit in hits:
         hit['_source']['max_sim'], hit['_source']['sum_sim'] \
             = passage_similarity(query, hit, verbose=False)
+        hit['_source']['splainer'] = splainer_url(es_body=body)
 
     hits = sorted(hits, key=lambda x: x['_source']['max_sim'], reverse=True)
     hits = hits[:5]
@@ -136,6 +138,7 @@ def rerank_simple_slop_search_max_snippet_at_5(es, query):
     for hit in hits:
         hit['_source']['max_sim'], hit['_source']['sum_sim'] = \
             passage_similarity(query, hit, verbose=False)
+        hit['_source']['splainer'] = splainer_url(es_body=body)
 
     hits = sorted(hits, key=lambda x: x['_source']['max_sim'], reverse=True)
     hits = hits[:5]
@@ -182,6 +185,7 @@ def rerank_simple_slop_search_sum_snippets_at_5(es, query):
     for hit in hits:
         hit['_source']['max_sim'], hit['_source']['sum_sim'] = \
             passage_similarity(query, hit, verbose=False)
+        hit['_source']['splainer'] = splainer_url(es_body=body)
 
     hits = sorted(hits, key=lambda x: x['_source']['sum_sim'], reverse=True)
     hits = hits[:5]
@@ -227,6 +231,7 @@ def max_passage_rerank_at_50(es, query):
     for hit in hits:
         hit['_source']['max_sim'], hit['_source']['sum_sim'] =\
             passage_similarity(query, hit, verbose=False)
+        hit['_source']['splainer'] = splainer_url(es_body=body)
 
     hits = sorted(hits, key=lambda x: x['_source']['max_sim'], reverse=True)
     hits = hits[:5]
