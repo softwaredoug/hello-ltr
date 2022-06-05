@@ -8,6 +8,27 @@ use_path = "https://tfhub.dev/google/universal-sentence-encoder-multilingual/3"
 _use = hub.load(use_path)
 
 
+def use_rescore_query(es_body, rescore_depth, query, vector_field='raw_text_use'):
+    query_vector = _use(query)
+    es_body['rescore'] = {
+        "window_size": rescore_depth,
+        "query": {
+          "rescore_query": {
+            "script_score": {
+              "query": {
+                "match_all": {}
+              },
+              "script": {
+                "source": f"cosineSimilarity(params.query_vector, '{vector_field}') + 1.0",
+                "params": {"query_vector": query_vector}
+              }
+            }
+          }
+        }
+      }
+    return es_body
+
+
 def passage_similarity(query, hit,
                        include_first_line=True,
                        encode_field='first_remaining_lines',

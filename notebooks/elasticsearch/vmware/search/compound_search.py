@@ -2,6 +2,7 @@ import pandas as pd
 from .passage_similarity import passage_similarity
 from . import freq_per_term, freq_per_phrase
 from .splainer import splainer_url
+from .query_cache import MemoizeQuery
 import json
 
 
@@ -28,6 +29,7 @@ def get_most_freq_compound_dicts():
     return to_decompound, to_compound
 
 
+@MemoizeQuery
 def with_best_compounds_at_5_only_phrase_search(es, query, rerank=True):
     """Adds using compounds computed from query dataset."""
     to_decompound, to_compound = get_most_freq_compound_dicts()
@@ -117,6 +119,7 @@ def with_best_compounds_at_5_only_phrase_search(es, query, rerank=True):
     return hits
 
 
+@MemoizeQuery
 def with_best_compounds_at_5(es, query, rerank=True):
     """Adds using compounds computed from query dataset."""
     to_decompound, to_compound = get_most_freq_compound_dicts()

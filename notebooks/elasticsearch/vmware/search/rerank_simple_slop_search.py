@@ -1,8 +1,10 @@
 import json
 from .passage_similarity import passage_similarity
 from .splainer import splainer_url
+from .query_cache import MemoizeQuery
 
 
+@MemoizeQuery
 def rerank_slop_search_remaining_lines_max_snippet_at_5(es, query):
     """Rerank with USE on top of best pure BM25 submission on
        29-May NDCG 0.31569."""

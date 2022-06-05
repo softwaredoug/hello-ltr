@@ -41,8 +41,9 @@ def damage(results1, results2, at=10):
 def search(query,
            strategy=rerank_slop_search_remaining_lines_max_snippet_at_5):
     print(query)
-    es = Elasticsearch('http://localhost:9200')
-    hits = strategy(es, query)
+    es = Elasticsearch('http://localhost:9200', timeout=30, max_retries=10,
+                       retry_on_status=True, retry_on_timeout=True)
+    hits = strategy(es, query=query)
     for hit in hits:
         print("**********************************")
         print(hit['_source']['title'] if 'title' in hit['_source'] else '',
@@ -58,10 +59,11 @@ def submission(baseline=rerank_slop_search_remaining_lines_max_snippet_at_5,
     """Search all test queries to generate a submission."""
     queries = pd.read_csv('data/test.csv')
     all_results = []
-    es = Elasticsearch('http://localhost:9200')
+    es = Elasticsearch('http://localhost:9200', timeout=30, max_retries=10,
+                       retry_on_status=True, retry_on_timeout=True)
     for query in queries.to_dict(orient='records'):
-        results_control = baseline(es, query['Query'])
-        results_test = test(es, query['Query'])
+        results_control = baseline(es, query=query['Query'])
+        results_test = test(es, query=query['Query'])
 
         delta_damage = damage([r['_id'] for r in results_control],
                               [r['_id'] for r in results_test])
@@ -79,9 +81,13 @@ def submission(baseline=rerank_slop_search_remaining_lines_max_snippet_at_5,
             source_test['score_control'] = result_control['_score']
             source_test['damage'] = delta_damage
             source_test['DocumentId_test'] = source_test['id']
+            source_test['DocumentId'] = source_test['id']
             source_test['DocumentId_control'] = source_control['id']
             source_test['splainer_test'] = source_test['splainer']
             source_test['splainer_control'] = source_control['splainer']
+            source_test['first_line_control'] = source_control['first_line']
+            source_test['first_line_test'] = source_test['first_line']
+            source_test['raw_text_control'] = source_control['raw_text']
             source_test['QueryId'] = query['QueryId']
             all_results.append(source_test)
     all_results = pd.DataFrame(all_results)
