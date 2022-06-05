@@ -1,8 +1,8 @@
 from collections import Counter, defaultdict
 import string
 import pandas as pd
-from ltr.client import ElasticClient
 import elasticsearch.helpers
+from elasticsearch import Elasticsearch
 from time import perf_counter
 
 class Colocations:
@@ -112,13 +112,15 @@ class Colocations:
 
 
 
-def scan_index(client, index, query={"query": {"match_all": {}}}):
+def scan_index(index, query={"_source": ["raw_text"], "query": {"match_all": {}}}):
     """Compute colocation and compound scores for the corpus."""
+    es = Elasticsearch('http://localhost:9200', timeout=30, max_retries=10,
+                       retry_on_status=True, retry_on_timeout=True)
     start = perf_counter()
     collocations = Colocations()
-    for idx, doc in enumerate(elasticsearch.helpers.scan(client.es, index=index, scroll='5m',
-                                                          size=1000,
-                                                          query=query)):
+    for idx, doc in enumerate(elasticsearch.helpers.scan(es, index=index, scroll='5m',
+                                                         size=1000,
+                                                         query=query)):
         collocations.add_text(doc['_source']['raw_text'].split("\n")[:5])
         #collocations.add_text(doc['_source']['first_line'])
         #for line in doc['_source']['remaining_lines'][:10]:

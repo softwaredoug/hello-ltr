@@ -30,7 +30,8 @@ def use_rescore_query(es_body, rescore_depth, query, vector_field='raw_text_use'
 
 
 def passage_similarity_long_lines(query, hit,
-                                  verbose=False):
+                                  verbose=False,
+                                  remaining_lines=True):
     source = hit['_source']
     vectors = [source['first_line_use']]
     for idx in range(0, 10):
@@ -51,6 +52,8 @@ def passage_similarity_long_lines(query, hit,
         num_stars = 10 * (cos_sim + 1)
         if verbose:
             print(f"{cos_sim:.2f}", "*" * int(num_stars), " " * (20 - int(num_stars)), line[:40])
+        if not remaining_lines:
+            break
     if verbose:
         print(f"MAX: {max_sim:.2f} | SUM: {sum_sim:.2f} | SCORE: {hit['_score']}")
     return max_sim, sum_sim

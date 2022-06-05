@@ -6,7 +6,7 @@ import pandas as pd
 # Best baseline thusfar
 # from .rerank_simple_slop_search import \
 #    rerank_slop_search_remaining_lines_max_snippet_at_5
-from .best_compound_search import with_best_compounds_at_5_only_phrase_search
+from .compound_search import with_best_compounds_at_5_only_phrase_search
 
 
 def damage(results1, results2, at=10):
@@ -105,6 +105,20 @@ def write_submission(all_results, name):
     fname = f'data/{name}_turnbull_{timestamp}.csv'
     print("Writing To: ", fname)
     all_results[['QueryId', 'DocumentId']].to_csv(fname, index=False)
+
+
+def diff_results(all_results):
+    diff_queries = all_results[all_results['damage'] > 0][['Query', 'damage',
+                                                           'first_line_control', 'first_line',
+                                                           'splainer_test', 'splainer_control']]
+    last_query = None
+    for result in diff_queries.sort_values(['damage', 'Query']).to_dict(orient='records'):
+        if result['Query'] != last_query:
+            last_query = result['Query']
+            print(f"-------- {result['Query']} -- {result['damage']}-------")
+        print(result['first_line_control'], "|||", result['first_line'])
+    print("----------------------------------")
+    print(f"Changed Queries - {len(diff_queries['Query'].unique())} different queries")
 
 
 if __name__ == "__main__":
