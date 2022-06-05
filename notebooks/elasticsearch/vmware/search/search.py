@@ -91,8 +91,10 @@ def submission(baseline=rerank_slop_search_remaining_lines_max_snippet_at_5,
             source_test['QueryId'] = query['QueryId']
             all_results.append(source_test)
     all_results = pd.DataFrame(all_results)
-    return queries.merge(all_results, how='left', on='QueryId')\
+    all_results = queries.merge(all_results, how='left', on='QueryId')\
         .sort_values(['QueryId', 'rank'])
+    write_submission(all_results, test.__name__)
+    return all_results
 
 
 def write_submission(all_results, name):

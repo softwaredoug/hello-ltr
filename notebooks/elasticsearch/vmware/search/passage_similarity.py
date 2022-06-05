@@ -29,36 +29,19 @@ def use_rescore_query(es_body, rescore_depth, query, vector_field='raw_text_use'
     return es_body
 
 
-def passage_similarity(query, hit,
-                       include_first_line=True,
-                       encode_field='first_remaining_lines',
-                       vector_field='long_remaining_lines_use_',
-                       verbose=False):
+def passage_similarity_long_lines(query, hit,
+                                  verbose=False):
     source = hit['_source']
-    lines = []
-    vectors = []
-    if include_first_line:
-        vectors.append(source['first_line_use'])
-        lines.append(source['first_line'])
-    if vector_field is not None:
-        for idx in range(0, 10):
-            next_vector_field = f"{vector_field}_{idx}"
-            if next_vector_field in source:
-                vectors.append(source[next_vector_field])
-        # TODO - fix me - hard coded!
-        for line in source['remaining_lines']:
-            if len(line) > 20:
-                lines.append(line)
-    elif encode_field is not None:
-        if isinstance(source[encode_field], list):
-            for text in source[encode_field]:
-                vectors.append(_use(text))
-                lines.append(text)
-        else:
-            vectors.append(_use(source[encode_field]))
-
+    vectors = [source['first_line_use']]
+    for idx in range(0, 10):
+        next_vector_field = f"long_remaining_lines_use_{idx}"
+        if next_vector_field in source:
+            vectors.append(source[next_vector_field])
+    lines = [source['first_line']]
+    for line in source['remaining_lines']:
+        if len(line) > 20:
+            lines.append(line)
     query_use = _use(query).numpy()[0]
-
     max_sim = -1.0
     sum_sim = 0.0
     for line, vector in zip(lines, vectors):
@@ -67,11 +50,7 @@ def passage_similarity(query, hit,
         max_sim = max(max_sim, cos_sim)
         num_stars = 10 * (cos_sim + 1)
         if verbose:
-            print(f"{cos_sim:.2f}", "*" * int(num_stars),
-                  " " * (20 - int(num_stars)), line[:40])
-
-    msg = f"MAX: {max_sim:.2f} | SUM: {sum_sim:.2f} | SCORE: {hit['_score']}"
+            print(f"{cos_sim:.2f}", "*" * int(num_stars), " " * (20 - int(num_stars)), line[:40])
     if verbose:
-        print(msg)
-
+        print(f"MAX: {max_sim:.2f} | SUM: {sum_sim:.2f} | SCORE: {hit['_score']}")
     return max_sim, sum_sim

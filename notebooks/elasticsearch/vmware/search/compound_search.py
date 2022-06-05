@@ -1,5 +1,5 @@
 import pandas as pd
-from .passage_similarity import passage_similarity
+from .passage_similarity import passage_similarity_long_lines
 from . import freq_per_term, freq_per_phrase
 from .splainer import splainer_url
 from .query_cache import MemoizeQuery
@@ -29,10 +29,15 @@ def get_most_freq_compound_dicts():
     return to_decompound, to_compound
 
 
+most_freq_compound_strategy = get_most_freq_compound_dicts()
+
+
 @MemoizeQuery
 def with_best_compounds_at_5_only_phrase_search(es, query, rerank=True):
-    """Adds using compounds computed from query dataset."""
-    to_decompound, to_compound = get_most_freq_compound_dicts()
+    """Adds using compounds computed from query dataset.
+       Best submission on 5-June, improves a few qureies, NDCG - 0.31643
+    """
+    to_decompound, to_compound = most_freq_compound_strategy[0], most_freq_compound_strategy[1]
     body = {
         'size': 5,
         'query': {
@@ -111,7 +116,7 @@ def with_best_compounds_at_5_only_phrase_search(es, query, rerank=True):
     for hit in hits:
         hit['_source']['splainer'] = splainer_url(es_body=body)
         hit['_source']['max_sim'], hit['_source']['sum_sim'] = \
-            passage_similarity(query, hit, verbose=False)
+            passage_similarity_long_lines(query, hit, verbose=False)
 
     if rerank:
         hits = sorted(hits, key=lambda x: x['_source']['max_sim'], reverse=True)
@@ -122,7 +127,7 @@ def with_best_compounds_at_5_only_phrase_search(es, query, rerank=True):
 @MemoizeQuery
 def with_best_compounds_at_5(es, query, rerank=True):
     """Adds using compounds computed from query dataset."""
-    to_decompound, to_compound = get_most_freq_compound_dicts()
+    to_decompound, to_compound = most_freq_compound_strategy[0], most_freq_compound_strategy[1]
     body = {
         'size': 5,
         'query': {
@@ -212,7 +217,7 @@ def with_best_compounds_at_5(es, query, rerank=True):
     for hit in hits:
         hit['_source']['splainer'] = splainer_url(es_body=body)
         hit['_source']['max_sim'], hit['_source']['sum_sim'] = \
-            passage_similarity(query, hit, verbose=False)
+            passage_similarity_long_lines(query, hit, verbose=False)
 
     if rerank:
         hits = sorted(hits, key=lambda x: x['_source']['max_sim'], reverse=True)
@@ -223,7 +228,7 @@ def with_best_compounds_at_5(es, query, rerank=True):
 def with_best_compounds_at_20(es, query, rerank=False):
     """Adds using compounds computed from query dataset.
        NDCG - 0.28790"""
-    to_decompound, to_compound = get_most_freq_compound_dicts()
+    to_decompound, to_compound = most_freq_compound_strategy[0], most_freq_compound_strategy[1]
     body = {
         'size': 20,
         'query': {
@@ -311,7 +316,7 @@ def with_best_compounds_at_20(es, query, rerank=False):
     for hit in hits:
         hit['_source']['splainer'] = splainer_url(es_body=body)
         hit['_source']['max_sim'], hit['_source']['sum_sim'] = \
-            passage_similarity(query, hit, verbose=False)
+            passage_similarity_long_lines(query, hit, verbose=False)
 
     if rerank:
         hits = sorted(hits, key=lambda x: x['_source']['max_sim'], reverse=True)
