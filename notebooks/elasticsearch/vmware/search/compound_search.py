@@ -125,6 +125,97 @@ def with_best_compounds_at_5_only_phrase_search(es, query, rerank=True):
 
 
 @MemoizeQuery
+def with_best_compounds_at_5_only_phrase_search_multiply_use(es, query, rerank=True):
+    """Shot in the dark on multiplying the USE score
+    """
+    to_decompound, to_compound = most_freq_compound_strategy[0], most_freq_compound_strategy[1]
+    body = {
+        'size': 5,
+        'query': {
+            'bool': {'should': [
+                {'match_phrase': {
+                    'remaining_lines': {
+                        'slop': 10,
+                        'query': query
+                    }
+                }},
+                {'match_phrase': {
+                    'first_line': {
+                        'slop': 10,
+                        'query': query
+                    }
+                }},
+                {'match': {
+                    'remaining_lines': {
+                        'query': query
+                    }
+                }},
+                {'match': {
+                    'first_line': {
+                        'query': query
+                    }
+                }},
+            ]}
+        }
+    }
+
+    new_query = []
+    last_term = ''
+    fast_forward = False
+    for first_term, second_term in zip(query.split(), query.split()[1:]):
+        last_term = second_term
+        if fast_forward:
+            print("Skipping: " + first_term + " " + second_term)
+            fast_forward = False
+            continue
+        first_term = first_term.strip().lower()
+        second_term = second_term.strip().lower()
+        if first_term in to_decompound:
+            new_query.append(to_decompound[first_term])
+        elif (first_term, second_term) in to_compound:
+            new_query.append(first_term + second_term)
+            fast_forward = True
+        else:
+            new_query.append(first_term)
+
+    if last_term in to_decompound:
+        new_query.append(to_decompound[last_term])
+    else:
+        new_query.append(last_term)
+
+    if new_query != query.split():
+        new_query = " ".join(new_query)
+        alt_clauses = \
+                [{'match_phrase': {   # noqa: E127
+                    'remaining_lines': {
+                        'slop': 10,
+                        'query': new_query
+                    }
+                }},
+                {'match_phrase': {   # noqa: E122
+                    'first_line': {
+                        'slop': 10,
+                        'query': new_query
+                    }
+                }}]
+        body['query']['bool']['should'].extend(alt_clauses)
+
+    print(json.dumps(body, indent=2))
+
+    hits = es.search(index='vmware', body=body)['hits']['hits']
+
+    for hit in hits:
+        hit['_source']['splainer'] = splainer_url(es_body=body)
+        hit['_source']['max_sim'], hit['_source']['sum_sim'] = \
+            passage_similarity_long_lines(query, hit, verbose=False)
+
+    if rerank:
+        hits = sorted(hits, key=lambda x: (x['_source']['max_sim'] * x['_score']), reverse=True)
+        hits = hits[:5]
+    return hits
+
+
+@MemoizeQuery
 def with_best_compounds_at_5(es, query, rerank=True):
     """Adds using compounds computed from query dataset."""
     to_decompound, to_compound = most_freq_compound_strategy[0], most_freq_compound_strategy[1]

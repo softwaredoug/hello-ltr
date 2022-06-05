@@ -3,8 +3,10 @@ from elasticsearch import Elasticsearch
 from math import log
 
 import pandas as pd
-from .rerank_simple_slop_search import \
-    rerank_slop_search_remaining_lines_max_snippet_at_5
+# Best baseline thusfar
+# from .rerank_simple_slop_search import \
+#    rerank_slop_search_remaining_lines_max_snippet_at_5
+from .best_compound_search import with_best_compounds_at_5_only_phrase_search
 
 
 def damage(results1, results2, at=10):
@@ -39,7 +41,7 @@ def damage(results1, results2, at=10):
 
 
 def search(query,
-           strategy=rerank_slop_search_remaining_lines_max_snippet_at_5):
+           strategy=with_best_compounds_at_5_only_phrase_search):
     print(query)
     es = Elasticsearch('http://localhost:9200', timeout=30, max_retries=10,
                        retry_on_status=True, retry_on_timeout=True)
@@ -53,8 +55,8 @@ def search(query,
         print("----------------------------------")
 
 
-def submission(baseline=rerank_slop_search_remaining_lines_max_snippet_at_5,
-               test=rerank_slop_search_remaining_lines_max_snippet_at_5,
+def submission(baseline=with_best_compounds_at_5_only_phrase_search,
+               test=with_best_compounds_at_5_only_phrase_search,
                verbose=False):
     """Search all test queries to generate a submission."""
     queries = pd.read_csv('data/test.csv')
