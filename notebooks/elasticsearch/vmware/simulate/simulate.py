@@ -11,8 +11,8 @@ from statistics import NormalDist
 ndcgs = {
     'data/noise.csv': 0.00060,
     'data/use_feedback_rrf_turnbull_submission_1653226391886872.csv': 0.16806,
-    # 'data/turnbull_submission_1652544680901428.csv': 0.20911,
-    # 'data/pull_out_firstline_turnbull_1653253060074837.csv': 0.29668,
+    'data/turnbull_submission_1652544680901428.csv': 0.20911,
+    'data/pull_out_firstline_turnbull_1653253060074837.csv': 0.29668,
     'data/rerank_slop_search_remaining_lines_max_snippet_at_5_turnbull_1654439885030507.csv': 0.31574,
     'data/with_best_compounds_at_5_only_phrase_search_turnbull_1654439995765457.csv': 0.31643,
     'data/with_best_compounds_at_50_plus_10_times_use_turnbull_165445182567455.csv': 0.32681,
@@ -102,6 +102,7 @@ def create_results_diff(results_before, results_after):
     results['weight_delta'] = results['weight_after'] - results['weight_before']
     results['position_delta'] = results['position_after'] - results['position_before']
     results['weight_delta_abs'] = np.abs(results['weight_delta'])
+    assert (results[results['position_delta'] == 0]['weight_delta'] == 0).all()
 
     return results
 
@@ -226,12 +227,13 @@ def main():
                               verbose=True)
 
         # Accumulate judgments from this pair into the evaluation
-        results = results.groupby(['QueryId', 'DocumentId'])[['alpha', 'beta', 'weight_delta', 'position_delta']].sum()
+        assert (results[results['position_delta'] == 0]['weight_delta'] == 0).all()
+        results = results.groupby(['QueryId', 'DocumentId'])[['alpha', 'beta']].sum()
         if len(judgments) == 0:
             judgments = results
         else:
             judgments = judgments.append(results)
-            import pdb; pdb.set_trace()
+
         judgments = \
             judgments.groupby(['QueryId', 'DocumentId'])[['alpha', 'beta']].sum()
         print(len(results), '->', len(judgments))
