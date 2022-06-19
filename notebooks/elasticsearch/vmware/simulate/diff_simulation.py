@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 from statistics import NormalDist
+from time import perf_counter
 
 ideal_dcg_at_5 = 2.948459119
 
@@ -98,7 +99,7 @@ def _biased_random_sample(sample_size, prob_of_relevance=0.9):
     return biased_sample.astype(int)
 
 
-def _universe_probability(actual_dcg_delta, simulated_dcg_delta, std_dev=1000):
+def _universe_probability(actual_dcg_delta, simulated_dcg_delta, std_dev=1):
     actual_universe_distribution = NormalDist(mu=actual_dcg_delta, sigma=std_dev)
     simulated_universe_distribution = NormalDist(mu=simulated_dcg_delta, sigma=std_dev)
     universe_prob = actual_universe_distribution.overlap(simulated_universe_distribution)
@@ -181,37 +182,44 @@ def estimate_relevance(diff, actual_dcg_delta, min_rounds=100, converge_std_dev=
     # We can account for this when we normalize alpha and beta
     diff['grade_changed'] = False
     diff['actual_dcg_delta'] = actual_dcg_delta
-    diff.loc[diff['weight_delta'] > 0, 'grade_changed'] = True
-    diff.loc[diff['weight_delta'] < 0, 'grade_changed'] = True
+    moves_up = diff['weight_delta'] > 0
+    num_moves_up = len(diff.loc[moves_up])
+    moves_down = diff['weight_delta'] < 0
+    num_moves_down = len(diff.loc[moves_down])
+    changed = diff['weight_delta'] != 0
+
+    diff.loc[:, 'grade'] = 0
+    diff.loc[changed, 'grade_changed'] = True
+
+    start = perf_counter()
 
     learning_rate = 0.001
     rounds = 0
     while True:
         # Assign the items with a positive weight delta (moved UP) a relevance of 1
         # with probability `prob_positive` (and conversely for negatives)
-        rand_grades_positive = _biased_random_sample(len(diff[diff['weight_delta'] > 0]),
+        rand_grades_positive = _biased_random_sample(num_moves_up,
                                                      prob_of_relevance=prob_positive)
-        rand_grades_negative = _biased_random_sample(len(diff[diff['weight_delta'] < 0]),
+        rand_grades_negative = _biased_random_sample(num_moves_down,
                                                      prob_of_relevance=1.0 - prob_positive)
 
-        diff['grade'] = 0
-        diff.loc[diff['weight_delta'] > 0, 'grade'] = rand_grades_positive
-        diff.loc[diff['weight_delta'] < 0, 'grade'] = rand_grades_negative
+        diff.loc[moves_up, 'grade'] = rand_grades_positive
+        diff.loc[moves_down, 'grade'] = rand_grades_negative
 
         # DCG delta of this simulated universe - how close is it to the observed DCG delta?
-        simulated_dcg_delta = sum(diff['grade'] * diff['weight_delta'])
+        simulated_dcg_delta = (diff['grade'] * diff['weight_delta']).sum()
         universe_prob = _universe_probability(actual_dcg_delta, simulated_dcg_delta,
                                               std_dev=dcg_diff_std_dev)
 
         # Increment alpha and beta in proportion to probability of the universe being real
         # how close to observed universe relative to how many possible universes could be THE universe (num_grades_changed)
-        diff.loc[(diff['grade'] == 1) & (diff['weight_delta'] != 0), 'alpha'] += universe_prob
-        diff.loc[(diff['grade'] == 0) & (diff['weight_delta'] != 0), 'beta'] += universe_prob
+        diff.loc[(diff['grade'] == 1) & changed, 'alpha'] += universe_prob
+        diff.loc[(diff['grade'] == 0) & changed, 'beta'] += universe_prob
 
-        diff['std_dev'] = np.sqrt((diff['alpha'] * diff['beta']) /
-                                  (((diff['alpha'] + diff['beta'])**2) * (1 + diff['alpha'] + diff['beta'])))
+        diff.loc[changed, 'std_dev'] = np.sqrt((diff['alpha'] * diff['beta']) /
+                                               (((diff['alpha'] + diff['beta'])**2) * (1 + diff['alpha'] + diff['beta'])))
 
-        biggest_std_dev = max(diff.loc[diff['grade_changed'], 'std_dev'])
+        biggest_std_dev = diff.loc[changed, 'std_dev'].max()
 
         # increment in the direction of the weight delta
         # inversely proportion to the probability of the universe being real
@@ -229,7 +237,7 @@ def estimate_relevance(diff, actual_dcg_delta, min_rounds=100, converge_std_dev=
             msg = f"Sim: {simulated_dcg_delta:.2f}, Act: {actual_dcg_delta:.2f}({dcg_diff_std_dev:.3f}),"
             msg += f"Prob: {universe_prob:.3f}, Tot: {plausible_universe_prob:.3f} | StdDev? {biggest_std_dev:.3f}"
             msg += f"| Upd {update:.3f}, Draw {prob_positive:.3f}"
-            msg += f" | {num_grades_changed} changed"
+            msg += f" | {num_grades_changed} changed | {rounds}/{perf_counter() - start:.3f}s"
             print(msg)
         rounds += 1
 
