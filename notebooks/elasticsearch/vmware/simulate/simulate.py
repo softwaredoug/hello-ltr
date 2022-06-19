@@ -1,7 +1,7 @@
 # Can we infer relevance grades from just a difference in the mean NDCG of two samples?
 import pandas as pd
 import numpy as np
-from diff_simulation import estimate_relevance, create_results_diff, ideal_dcg_at_5, corpus
+from diff_simulation import estimate_relevance, create_results_diff, ideal_dcg_at_5
 
 
 # Submissions from the kaggle vmware competition
@@ -76,6 +76,7 @@ def main():
                                          (((judgments['alpha'] + judgments['beta'])**2) * (1 + judgments['alpha'] + judgments['beta'])))
 
     # Join with corpus for debugging
+    corpus = pd.read_csv('data/vmware_ir_content.csv')
     queries = pd.read_csv('data/test.csv')
     judgments = judgments.reset_index()
     results = judgments.merge(corpus, right_on='f_name', left_on='DocumentId', how='left')

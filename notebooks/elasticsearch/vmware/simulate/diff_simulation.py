@@ -93,13 +93,14 @@ def _sign(x):
 
 def _biased_random_sample(sample_size, prob_of_relevance=0.9):
     sample = np.random.random_sample(sample_size)
-    biased_sample = sample.copy()
-    biased_sample[sample < prob_of_relevance] = 1
+    biased_sample = np.ones(sample_size)
     biased_sample[sample >= prob_of_relevance] = 0
     return biased_sample.astype(int)
 
 
 def _universe_probability(actual_dcg_delta, simulated_dcg_delta, std_dev=1):
+    if abs(actual_dcg_delta - simulated_dcg_delta) > (3 * std_dev):
+        return 0
     actual_universe_distribution = NormalDist(mu=actual_dcg_delta, sigma=std_dev)
     simulated_universe_distribution = NormalDist(mu=simulated_dcg_delta, sigma=std_dev)
     universe_prob = actual_universe_distribution.overlap(simulated_universe_distribution)
@@ -107,7 +108,6 @@ def _universe_probability(actual_dcg_delta, simulated_dcg_delta, std_dev=1):
     return universe_prob
 
 
-corpus = pd.read_csv('data/vmware_ir_content.csv')
 
 
 def _debug_query(diff, query_id):
